@@ -1,5 +1,5 @@
-const Migrations = artifacts.require("Migrations");
+const Token = artifacts.require("Hyip");
 
-module.exports = function (deployer) {
-  deployer.deploy(Migrations);
+module.exports = async function (deployer, network, accounts) {
+  await deployer.deploy(Token,accounts[1],accounts[2]);
 };
