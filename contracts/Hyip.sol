@@ -12,6 +12,7 @@ contract Hyip {
     struct Packages {
         uint256 amount;
         uint256 lockPeriod;
+        uint256 totalInvestors;
     }
 
     struct Deposits {
@@ -34,7 +35,7 @@ contract Hyip {
     address payable public marketingWallet;
     address payable public reserveWallet;
 
-    PackageTracker[] public package;
+    PackageTracker[] public packageTracker;
 
     uint256 public total_investors;
     uint256 public totalInvested;
@@ -59,9 +60,9 @@ contract Hyip {
         marketingWallet = _marketingWallet;
         reserveWallet = _reserveWallet;
 
-        package.push(new PackageTracker("Package 1 Tracker", "P1"));
-        package.push(new PackageTracker("Package 2 Tracker", "P2"));
-        package.push(new PackageTracker("Package 3 Tracker", "P3"));
+        packageTracker.push(new PackageTracker("Package 1 Tracker", "P1"));
+        packageTracker.push(new PackageTracker("Package 2 Tracker", "P2"));
+        packageTracker.push(new PackageTracker("Package 3 Tracker", "P3"));
 
         referralBonuses.push(50);
         referralBonuses.push(15);
@@ -90,6 +91,10 @@ contract Hyip {
 
         require(msg.sender != _referral, "No self referring");
         require(
+            _referral == marketingWallet || players[_referral].totalInvested > 0,
+            "Invalid referral"
+        );
+        require(
             msg.value == packages[packageId].amount,
             "Invalid amount of BNB sent"
         );
@@ -98,8 +103,12 @@ contract Hyip {
 
         _setReferral(msg.sender, _referral);
 
-        if (player.totalInvested == 0x0) {
-            total_investors += 1;
+        if (player.totalInvested == 0) {
+            total_investors++;
+        }
+
+        if(player.deposits[packageId].depositAmount == 0){
+            packages[packageId].totalInvestors++;
         }
 
         uint256 amount = msg.value;
@@ -115,13 +124,13 @@ contract Hyip {
 
         //10% shared among all holders
         try
-            package[packageId].setBalance(
+            packageTracker[packageId].setBalance(
                 payable(msg.sender),
                 player.deposits[packageId].depositAmount
             )
         {} catch {}
 
-        (bool success, ) = address(package[packageId]).call{value: amount / 10}(
+        (bool success, ) = address(packageTracker[packageId]).call{value: amount / 10}(
             ""
         );
         if (success) {
@@ -201,15 +210,14 @@ contract Hyip {
 
         player.deposits[packageId].depositAmount = 0;
         player.deposits[packageId].depositTime = block.timestamp;
-        try package[packageId].setBalance(payable(msg.sender), 0) {} catch {}
-
+        try packageTracker[packageId].setBalance(payable(msg.sender), 0) {} catch {}
     }
 
     function _payout(uint8 _packageId, address payable _addr) private {
         uint256 payout = this.dividendOf(_packageId, _addr);
 
         if (payout > 0) {
-            package[_packageId].processAccount(_addr);
+            packageTracker[_packageId].processAccount(_addr);
             players[_addr].lastClaimTime = uint256(block.timestamp);
             players[_addr].dividends += payout;
         }
@@ -220,7 +228,7 @@ contract Hyip {
         view
         returns (uint256 value)
     {
-        (uint256 dividend, uint256 time) = package[packageId].getAccount(_addr);
+        (uint256 dividend, uint256 time) = packageTracker[packageId].getAccount(_addr);
         if (block.timestamp - time >= 6 hours) {
             value = dividend;
         }
@@ -257,11 +265,13 @@ contract Hyip {
             uint256 invested,
             uint256 withdrawn,
             uint256 referralBonus,
-            uint256[8] memory referrals
+            uint256[] memory referrals
         )
     {
         Player storage player = players[_addr];
         uint256 payout = this.dividendOf(_packageId, _addr);
+
+        referrals = new uint256[](referralBonuses.length);
 
         for (uint8 i = 0; i < referralBonuses.length; i++) {
             referrals[i] = player.referrals_per_level[i];
@@ -280,28 +290,15 @@ contract Hyip {
     function getUserReferralInfo(address _addr)
         external
         view
-        returns (
-            uint256 refs,
-            uint256 first,
-            uint256 second,
-            uint256 third,
-            uint256 fourth,
-            uint256 fifth
-        )
+        returns (uint256 total, uint256[] memory refPerLevel)
     {
-        uint256 total = players[_addr].referrals_per_level[0] +
-            players[_addr].referrals_per_level[1] +
-            players[_addr].referrals_per_level[2] +
-            players[_addr].referrals_per_level[3] +
-            players[_addr].referrals_per_level[4];
-        return (
-            total,
-            players[_addr].referrals_per_level[0],
-            players[_addr].referrals_per_level[1],
-            players[_addr].referrals_per_level[2],
-            players[_addr].referrals_per_level[3],
-            players[_addr].referrals_per_level[4]
-        );
+        refPerLevel = new uint256[](referralBonuses.length);
+        Player storage player = players[_addr];
+
+        for (uint8 i = 0; i < referralBonuses.length; i++) {
+            total += player.referrals_per_level[i];
+            refPerLevel[i] = player.referrals_per_level[i];
+        }
     }
 }
 
