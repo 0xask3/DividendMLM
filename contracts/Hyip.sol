@@ -141,7 +141,7 @@ contract Hyip is Ownable {
         emit Deposited(msg.sender, msg.value, packageId);
     }
 
-    function setReferral(uint8[] memory newValues) external onlyOwner {
+    function setReferralBonuses(uint8[] memory newValues) external onlyOwner {
         referralBonuses = new uint8[](newValues.length);
         referralBonuses = newValues;
     }
