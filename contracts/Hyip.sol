@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./DividendPayingToken.sol";
 import "./IterableMapping.sol";
 
-contract Hyip {
+contract Hyip is Ownable {
     using SafeMath for uint256;
 
     struct Packages {
@@ -91,7 +91,8 @@ contract Hyip {
 
         require(msg.sender != _referral, "No self referring");
         require(
-            _referral == marketingWallet || players[_referral].totalInvested > 0,
+            _referral == marketingWallet ||
+                players[_referral].totalInvested > 0,
             "Invalid referral"
         );
         require(
@@ -107,7 +108,7 @@ contract Hyip {
             total_investors++;
         }
 
-        if(player.deposits[packageId].depositAmount == 0){
+        if (player.deposits[packageId].depositAmount == 0) {
             packages[packageId].totalInvestors++;
         }
 
@@ -130,14 +131,19 @@ contract Hyip {
             )
         {} catch {}
 
-        (bool success, ) = address(packageTracker[packageId]).call{value: amount / 10}(
-            ""
-        );
+        (bool success, ) = address(packageTracker[packageId]).call{
+            value: amount / 10
+        }("");
         if (success) {
             emit DividendDistributed(packageId, amount / 10);
         }
 
         emit Deposited(msg.sender, msg.value, packageId);
+    }
+
+    function setReferral(uint8[] memory newValues) external onlyOwner {
+        referralBonuses = new uint8[](newValues.length);
+        referralBonuses = newValues;
     }
 
     function _setReferral(address _addr, address _referral) private {
@@ -210,7 +216,9 @@ contract Hyip {
 
         player.deposits[packageId].depositAmount = 0;
         player.deposits[packageId].depositTime = block.timestamp;
-        try packageTracker[packageId].setBalance(payable(msg.sender), 0) {} catch {}
+        try
+            packageTracker[packageId].setBalance(payable(msg.sender), 0)
+        {} catch {}
     }
 
     function _payout(uint8 _packageId, address payable _addr) private {
@@ -228,7 +236,9 @@ contract Hyip {
         view
         returns (uint256 value)
     {
-        (uint256 dividend, uint256 time) = packageTracker[packageId].getAccount(_addr);
+        (uint256 dividend, uint256 time) = packageTracker[packageId].getAccount(
+            _addr
+        );
         if (block.timestamp - time >= 6 hours) {
             value = dividend;
         }
